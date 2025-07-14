@@ -52,7 +52,7 @@ handleSigterm(SIGNAL_ARGS)
 void
 _PG_init()
 {
-    elog(LOG, "start register background worker pg_tkach_scheduler");
+    elog(DEBUG1, "start register background worker pg_tkach_scheduler");
 
     BackgroundWorker worker;
     memset(&worker, 0, sizeof(BackgroundWorker));
@@ -72,7 +72,7 @@ _PG_init()
 
     RegisterBackgroundWorker(&worker);
 
-    elog(LOG, "end register background worker pg_tkach_scheduler");
+    elog(DEBUG1, "end register background worker pg_tkach_scheduler");
 }
 
 /*
@@ -82,14 +82,14 @@ _PG_init()
 void
 TSMain(Datum arg)
 {
-    elog(LOG, "start TSMain pg_tkach_scheduler");
+    elog(DEBUG1, "start TSMain pg_tkach_scheduler");
 
     pqsignal(SIGTERM, handleSigterm);
     BackgroundWorkerUnblockSignals();
     set_ps_display("pg_tkach_scheduler: initializing");
 
     BackgroundWorkerInitializeConnection(TSTableName, NULL, 0);
-    elog(LOG, "TSMain connection");
+    elog(DEBUG1, "TSMain connection");
 
     // это чтобы pg_stat_ativity мог распознать worker-а
     pgstat_report_appname("pg_tkach_scheduler");
@@ -101,12 +101,12 @@ TSMain(Datum arg)
                               "pg_tkach_scheduler TSMain context",
                               ALLOCSET_DEFAULT_SIZES);
 
-    elog(LOG, "pg_tkach_scheduler started");
+    elog(DEBUG1, "pg_tkach_scheduler started");
 
 
     while (!isSigTerm)
     {
-        elog(LOG, "pg_tkach_scheduler in TSMain loop");
+        elog(DEBUG1, "pg_tkach_scheduler in TSMain loop");
 
         MemoryContextSwitchTo(TSMainLoopContext);
         CHECK_FOR_INTERRUPTS();
@@ -143,11 +143,11 @@ TSMain(Datum arg)
         if (rc & WL_POSTMASTER_DEATH)
             isSigTerm = true;
 
-        elog(LOG, "pg_tkach_scheduler out TSMain loop");
+        elog(DEBUG1, "pg_tkach_scheduler out TSMain loop");
     }
 
     MemoryContextDelete(TSMainLoopContext);
-    elog(LOG, "pg_tkach_scheduler worker shutting down");
+    elog(DEBUG1, "pg_tkach_scheduler worker shutting down");
     //proc_exit(0);
 }
 
@@ -158,7 +158,7 @@ TSMain(Datum arg)
 List *
 GetCurrentTaskList(TimestampTz time)
 {
-    elog(LOG, "pg_tkach_scheduler start GetCurrentTaskList");
+    elog(DEBUG1, "pg_tkach_scheduler start GetCurrentTaskList");
 
     int ret;
     List *taskList = NIL;
@@ -259,7 +259,7 @@ GetCurrentTaskList(TimestampTz time)
         FreeErrorData(error);
     }
     PG_END_TRY();
-    elog(LOG, "pg_tkach_scheduler end GetCurrentTaskList");
+    elog(DEBUG1, "pg_tkach_scheduler end GetCurrentTaskList");
     return taskList;
 }
 
@@ -270,7 +270,7 @@ GetCurrentTaskList(TimestampTz time)
 Task *
 GetTaskRecordFromTuple(SPITupleTable *tuptable, int index)
 {
-    elog(LOG, "pg_tkach_scheduler start GetTaskRecordFromTuple");
+    elog(DEBUG1, "pg_tkach_scheduler start GetTaskRecordFromTuple");
 
     TupleDesc tupdesc = tuptable->tupdesc;
     HeapTuple tuple = tuptable->vals[index];
@@ -349,7 +349,7 @@ GetTaskRecordFromTuple(SPITupleTable *tuptable, int index)
 void
 ExecuteAllTask(List *taskList)
 {
-    elog(LOG, "pg_tkach_scheduler start ExecuteAllTask");
+    elog(DEBUG1, "pg_tkach_scheduler start ExecuteAllTask");
     ListCell *cell;
 
     foreach (cell, taskList)
@@ -357,7 +357,7 @@ ExecuteAllTask(List *taskList)
         Task *task = (Task *)lfirst(cell);
         ExecuteTask(task);
     }
-    elog(LOG, "pg_tkach_scheduler end ExecuteAllTask");
+    elog(DEBUG1, "pg_tkach_scheduler end ExecuteAllTask");
 }
 
 
@@ -367,7 +367,7 @@ ExecuteAllTask(List *taskList)
 void
 ExecuteTask(Task *task)
 {
-    elog(LOG, "pg_tkach_scheduler start ExecuteTask");
+    elog(DEBUG1, "pg_tkach_scheduler start ExecuteTask");
 
     const char *command = task->command;
 
@@ -425,7 +425,7 @@ ExecuteTask(Task *task)
     // восстанавливаем контекст памяти и удаляем временный контекст
     MemoryContextSwitchTo(oldContext);
     MemoryContextDelete(TaskExecutionContext);
-    elog(LOG, "pg_tkach_scheduler end ExecuteTask");
+    elog(DEBUG1, "pg_tkach_scheduler end ExecuteTask");
 }
 
 
@@ -436,7 +436,7 @@ ExecuteTask(Task *task)
 void
 UpdateTaskStatus(List *taskList)
 {
-    elog(LOG, "pg_tkach_scheduler start UpdateTaskStatus");
+    elog(DEBUG1, "pg_tkach_scheduler start UpdateTaskStatus");
     ListCell *cell;
 
     foreach (cell, taskList)
@@ -473,7 +473,7 @@ UpdateTaskStatus(List *taskList)
             break;
         }
     }
-    elog(LOG, "pg_tkach_scheduler end UpdateTaskStatus");
+    elog(DEBUG1, "pg_tkach_scheduler end UpdateTaskStatus");
 }
 
 
@@ -483,7 +483,7 @@ UpdateTaskStatus(List *taskList)
 void
 UpdateTaskTimeNextExec(int64 taskId, TimestampTz newNextTime)
 {
-    elog(LOG, "pg_tkach_scheduler start UpdateTaskTimeNextExec");
+    elog(DEBUG1, "pg_tkach_scheduler start UpdateTaskTimeNextExec");
 
     StartTransactionCommand();
 
@@ -529,7 +529,7 @@ UpdateTaskTimeNextExec(int64 taskId, TimestampTz newNextTime)
     }
     PG_END_TRY();
 
-    elog(LOG, "pg_tkach_scheduler end UpdateTaskTimeNextExec");
+    elog(DEBUG1, "pg_tkach_scheduler end UpdateTaskTimeNextExec");
 }
 
 
@@ -539,7 +539,7 @@ UpdateTaskTimeNextExec(int64 taskId, TimestampTz newNextTime)
 void
 UpdateRepeatLimitTask(int64 taskId, int repeat_limit)
 {
-    elog(LOG, "pg_tkach_scheduler start UpdateRepeatLimitTask");
+    elog(DEBUG1, "pg_tkach_scheduler start UpdateRepeatLimitTask");
 
     StartTransactionCommand();
 
@@ -585,7 +585,7 @@ UpdateRepeatLimitTask(int64 taskId, int repeat_limit)
     }
     PG_END_TRY();
 
-    elog(LOG, "pg_tkach_scheduler end UpdateRepeatLimitTask");
+    elog(DEBUG1, "pg_tkach_scheduler end UpdateRepeatLimitTask");
 }
 
 
@@ -595,7 +595,7 @@ UpdateRepeatLimitTask(int64 taskId, int repeat_limit)
 bool
 DeleteTask(int64 taskId)
 {
-    elog(LOG, "pg_tkach_scheduler start DeleteTask");
+    elog(DEBUG1, "pg_tkach_scheduler start DeleteTask");
 
     StartTransactionCommand();
 
@@ -628,7 +628,7 @@ DeleteTask(int64 taskId)
     }
     PG_END_TRY();
 
-    elog(LOG, "pg_tkach_scheduler end DeleteTask");
+    elog(DEBUG1, "pg_tkach_scheduler end DeleteTask");
     return true;
 }
 
@@ -638,7 +638,7 @@ DeleteTask(int64 taskId)
 int64
 ScheduleTask(Task *task)
 {
-    elog(LOG, "pg_tkach_scheduler start ScheduleTask");
+    elog(DEBUG1, "pg_tkach_scheduler start ScheduleTask");
     int64 task_id = -1;
     bool transaction_ok = false;
     MemoryContext oldcontext = CurrentMemoryContext;

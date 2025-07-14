@@ -216,7 +216,8 @@ ts_schedule(PG_FUNCTION_ARGS)
 Datum
 ts_unschedule(PG_FUNCTION_ARGS)
 {
-    elog(ERROR, "pg_tkach_scheduler ts_unschedule");
+    elog(DEBUG1, "pg_tkach_scheduler ts_unschedule");
+
     int64 taskId;
     if (PG_ARGISNULL(0))
         elog(ERROR, "taskId must be NOT NULL");
