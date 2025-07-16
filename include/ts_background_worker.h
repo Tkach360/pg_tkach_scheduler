@@ -13,5 +13,6 @@ void UpdateTaskTimeNextExec(int64, TimestampTz);
 void UpdateRepeatLimitTask(int64, int);
 bool DeleteTask(int64);
 int64 ScheduleTask(Task*);
+void freeTaskList(List*);
 
 #endif // TS_BACKGROUND_WORKER

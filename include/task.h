@@ -41,6 +41,7 @@ typedef struct Task
 TaskType CStringToTaskType(const char*);
 const char* TaskTypeToCString(TaskType);
 TimestampTz GetNewTimeNextExec(Task *);
+TaskType Int32ToTaskType(int32 typeInt32);
 
 
 #endif

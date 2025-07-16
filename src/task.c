@@ -25,7 +25,7 @@ CStringToTaskType(const char *type)
 }
 
 /*
- * перевести тип строки в const char*
+ * перевести тип записи в const char*
  */
 const char *
 TaskTypeToCString(TaskType type)
@@ -40,6 +40,28 @@ TaskTypeToCString(TaskType type)
         return "repeat_limit";
     case RepeatUntil:
         return "repeat_until";
+    default:
+        return "ERROR";
+    }
+}
+
+
+/*
+ * число в тип записи
+ */
+TaskType
+Int32ToTaskType(int32 typeInt32)
+{
+    switch (typeInt32)
+    {
+    case 0:
+        return Single;
+    case 1:
+        return Repeat;
+    case 2:
+        return RepeatLimit;
+    case 3:
+        return RepeatUntil;
     }
 }
 

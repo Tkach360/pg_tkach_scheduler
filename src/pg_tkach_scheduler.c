@@ -9,6 +9,7 @@
 #include "libpq/libpq-be.h"
 #include "executor/spi.h"
 #include "utils/elog.h"
+#include "utils/palloc.h"
 #include "utils/timestamp.h"
 #include <stdlib.h>
 
@@ -21,6 +22,8 @@ PG_MODULE_MAGIC;
 PG_FUNCTION_INFO_V1(ts_schedule);
 PG_FUNCTION_INFO_V1(ts_unschedule);
 PG_FUNCTION_INFO_V1(ts_check_shared_preload);
+
+int64 schedule_task(void);
 
 
 /*
@@ -51,161 +54,161 @@ ts_schedule(PG_FUNCTION_ARGS)
     int indNote = 6;
 
     elog(LOG, "pg_tkach_scheduler ts_schedule");
-    Task *task;
+    Task *task = palloc(sizeof(Task));
 
-    PG_TRY();
-    {
-        text *taskTypeText;
+    TaskType taskType;
 
-        text *commandText;
-        const char *command;
+    text *commandText;
+    const char *command;
 
-        Interval *exec_interval;
+    Interval *exec_interval;
 
-        TimestampTz timeNextExec;
-        int64 repeat_limit = 0;
-        TimestampTz timeUntil = 0;
+    TimestampTz timeNextExec;
+    int64 repeat_limit = 0;
+    TimestampTz timeUntil = 0;
 
-        text *noteText;
-        const char *note = NULL;
+    text *noteText;
+    const char *note = NULL;
 
-        /*
+    /*
         * проверки, проверки и ещё раз проверки
         */
 
-        elog(DEBUG1, "pg_tkach_scheduler ts_schedule 1");
+    elog(DEBUG1, "pg_tkach_scheduler ts_schedule 1");
 
-        if (PG_ARGISNULL(indType))
-            elog(ERROR, "task_type must be NOT NULL");
-        else
-        {
-            elog(DEBUG1, "pg_tkach_scheduler ts_schedule taskTypeText");
-            taskTypeText = PG_GETARG_TEXT_PP(indType);
-        }
-
-        elog(DEBUG1, "pg_tkach_scheduler ts_schedule 2");
-
-        TaskType type = CStringToTaskType(text_to_cstring(taskTypeText));
-        switch (type)
-        {
-        case Single:
-            break;
-
-        case Repeat:
-            if (PG_ARGISNULL(indExecInterval))
-                elog(ERROR, "exec_interval must be NOT NULL in repeat task");
-            else
-                exec_interval = PG_GETARG_INTERVAL_P(indExecInterval);
-
-            break;
-
-        case RepeatLimit:
-            if (PG_ARGISNULL(indExecInterval))
-                elog(ERROR,
-                     "exec_interval must be NOT NULL in repeat repeat_limit "
-                     "task");
-            else
-                exec_interval = PG_GETARG_INTERVAL_P(indExecInterval);
-
-            if (PG_ARGISNULL(indRepeatLimit))
-                elog(ERROR,
-                     "repeat_limit must be NOT NULL in "
-                     "repeat_limit task");
-            else
-            {
-                repeat_limit = PG_GETARG_INT64(indRepeatLimit);
-                if (repeat_limit == 0)
-                    elog(ERROR,
-                         "repeat_limit must not be 0 in repeat "
-                         "repeat_limit task");
-            }
-
-            break;
-
-        case RepeatUntil:
-            if (PG_ARGISNULL(indExecInterval))
-                elog(ERROR,
-                     "exec_interval must be NOT NULL in repeat until task");
-            else
-                exec_interval = PG_GETARG_INTERVAL_P(indExecInterval);
-
-            if (PG_ARGISNULL(indUntil))
-                elog(ERROR, "time_until must be NOT NULL in repeat until task");
-            else
-                timeUntil = PG_GETARG_TIMESTAMPTZ(indUntil);
-
-            break;
-        }
-
-        elog(DEBUG1, "pg_tkach_scheduler ts_schedule 3");
-
-        if (PG_ARGISNULL(indCommand))
-            elog(ERROR, "command must be NOT NULL");
-        else
-        {
-            commandText = PG_GETARG_TEXT_P(indCommand);
-            command = text_to_cstring(commandText);
-        }
-
-        elog(DEBUG1, "pg_tkach_scheduler ts_schedule 4");
-
-        if (PG_ARGISNULL(indTimeNextExec))
-            elog(ERROR, "time_next_exec must be NOT NULL");
-        else
-            timeNextExec = PG_GETARG_TIMESTAMPTZ(indTimeNextExec);
-
-        elog(DEBUG1, "pg_tkach_scheduler ts_schedule 5");
-
-        if (PG_ARGISNULL(indNote))
-            noteText = NULL;
-        else
-        {
-            noteText = PG_GETARG_TEXT_P(indNote);
-            note = text_to_cstring(noteText);
-        }
-
-        elog(DEBUG1, "pg_tkach_scheduler ts_schedule 6");
-
-        if (!isValidQuery(command))
-            elog(ERROR, "Invalid SQL command");
-
-        /*
-        * как говорится "We're ready to rock and roll..."
-        */
-
-        // получаем данные текущего пользователя и базу данных для него
-        Port *myport = MyProcPort;
-        const char *username = myport->user_name;
-        const char *database = myport->database_name;
-
-        task->command = command;
-        task->type = type;
-        task->exec_interval = exec_interval;
-        task->time_next_exec = timeNextExec;
-        task->repeat_limit = repeat_limit;
-        task->until = timeUntil;
-        task->note = note;
-        task->username = username;
-        task->database = database;
-
-        PG_RETURN_INT64(ScheduleTask(task));
-    }
-    PG_CATCH();
+    if (PG_ARGISNULL(indType))
+        elog(ERROR, "task_type must be NOT NULL");
+    else
     {
-        if (task->command)
-            pfree(task->command);
-        if (task->note)
-            pfree(task->note);
-        if (task->username)
-            pfree(task->username);
-        if (task->database)
-            pfree(task->database);
-
-        PG_RE_THROW();
+        elog(DEBUG1, "pg_tkach_scheduler ts_schedule taskTypeText");
+        taskType = CStringToTaskType(DatumGetCString(
+            DirectFunctionCall1(enum_out, PG_GETARG_DATUM(indType))));
+        elog(DEBUG1, "TaskType - %d", taskType);
     }
-    PG_END_TRY();
 
-    PG_RETURN_INT64(-1);
+    elog(DEBUG1, "pg_tkach_scheduler ts_schedule 2");
+
+    switch (taskType)
+    {
+    case Single:
+        break;
+
+    case Repeat:
+        if (PG_ARGISNULL(indExecInterval))
+            elog(ERROR, "exec_interval must be NOT NULL in repeat task");
+        else
+            exec_interval = PG_GETARG_INTERVAL_P(indExecInterval);
+
+        break;
+
+    case RepeatLimit:
+        if (PG_ARGISNULL(indExecInterval))
+            elog(ERROR,
+                 "exec_interval must be NOT NULL in repeat repeat_limit "
+                 "task");
+        else
+            exec_interval = PG_GETARG_INTERVAL_P(indExecInterval);
+
+        if (PG_ARGISNULL(indRepeatLimit))
+            elog(ERROR,
+                 "repeat_limit must be NOT NULL in "
+                 "repeat_limit task");
+        else
+        {
+            repeat_limit = PG_GETARG_INT64(indRepeatLimit);
+            if (repeat_limit == 0)
+                elog(ERROR,
+                     "repeat_limit must not be 0 in repeat "
+                     "repeat_limit task");
+        }
+
+        break;
+
+    case RepeatUntil:
+        if (PG_ARGISNULL(indExecInterval))
+            elog(ERROR, "exec_interval must be NOT NULL in repeat until task");
+        else
+            exec_interval = PG_GETARG_INTERVAL_P(indExecInterval);
+
+        if (PG_ARGISNULL(indUntil))
+            elog(ERROR, "time_until must be NOT NULL in repeat until task");
+        else
+            timeUntil = PG_GETARG_TIMESTAMPTZ(indUntil);
+
+        break;
+    }
+
+    elog(DEBUG1, "pg_tkach_scheduler ts_schedule 3");
+
+    if (PG_ARGISNULL(indCommand))
+        elog(ERROR, "command must be NOT NULL");
+    else
+    {
+        commandText = PG_GETARG_TEXT_P(indCommand);
+        command = text_to_cstring(commandText);
+        elog(DEBUG1, "ts_schedule - command: %s", command);
+    }
+
+    elog(DEBUG1, "pg_tkach_scheduler ts_schedule 4");
+
+    if (PG_ARGISNULL(indTimeNextExec))
+        elog(ERROR, "time_next_exec must be NOT NULL");
+    else
+        timeNextExec = PG_GETARG_TIMESTAMPTZ(indTimeNextExec);
+
+    elog(DEBUG1, "pg_tkach_scheduler ts_schedule 5");
+
+    if (PG_ARGISNULL(indNote))
+        noteText = NULL;
+    else
+    {
+        noteText = PG_GETARG_TEXT_P(indNote);
+        note = text_to_cstring(noteText);
+    }
+
+    elog(DEBUG1, "pg_tkach_scheduler ts_schedule 6");
+
+    if (!isValidQuery(command))
+    {
+        elog(LOG, "Invalid SQL command");
+        PG_RETURN_INT64(-1);
+    }
+    else
+        elog(DEBUG1, "isValidQuery");
+
+    /*
+    * как говорится "We're ready to rock and roll..."
+    */
+
+    // получаем данные текущего пользователя и базу данных для него
+    elog(DEBUG1, "pg_tkach_scheduler ts_schedule 7");
+    Port *myport = MyProcPort;
+    elog(DEBUG1, "pg_tkach_scheduler ts_schedule 8");
+    const char *username = myport->user_name;
+    const char *database = myport->database_name;
+    elog(DEBUG1, "pg_tkach_scheduler ts_schedule 9");
+
+
+    task->command = command;
+    task->type = taskType;
+    task->exec_interval = exec_interval;
+    task->time_next_exec = timeNextExec;
+
+    task->repeat_limit = repeat_limit;
+    task->until = timeUntil;
+    task->note = note;
+    task->username = username;
+    task->database = database;
+
+    elog(DEBUG1, "Type - %d", task->type);
+
+
+    int64 res = ScheduleTask(task);
+    //int64 res = schedule_task();
+    pfree(task);
+    elog(DEBUG1, "pg_tkach_scheduler ts_schedule 11");
+
+    PG_RETURN_INT64(res);
 }
 
 
@@ -232,146 +235,52 @@ ts_unschedule(PG_FUNCTION_ARGS)
  * функция для проверки корректности SQL запроса 
  */
 bool
-isValidQuery(const char *query)
+isValidQuery(const char *sql)
 {
-    int spi_connected = false;
-    SPIPlanPtr plan = NULL;
+    int ret;
     bool result = false;
-    MemoryContext oldcontext = CurrentMemoryContext;
-    ErrorData *error = NULL;
 
+    if ((ret = SPI_connect()) < 0)
+    {
+        elog(LOG, "SPI_connect failed");
+        return false;
+    }
+
+    // Подготавливаем запрос
     elog(DEBUG1, "pg_tkach_scheduler isValidQuery 1");
-
-    // Сохраняем текущий контекст ошибок
-    ErrorContextCallback *errcxt = error_context_stack;
-
+    SPIPlanPtr plan = SPI_prepare(sql, 0, NULL);
     elog(DEBUG1, "pg_tkach_scheduler isValidQuery 2");
 
-    PG_TRY();
+    if (plan != NULL)
     {
-        elog(DEBUG1, "pg_tkach_scheduler isValidQuery 3");
-
-        if (SPI_connect() != SPI_OK_CONNECT)
-        {
-            ereport(ERROR,
-                    (errcode(ERRCODE_CONNECTION_FAILURE),
-                     errmsg("SPI connection failed")));
-        }
-        spi_connected = true;
-
-        elog(DEBUG1, "pg_tkach_scheduler isValidQuery 4");
-
-        // Попытка подготовить план
-        plan = SPI_prepare(query, 0, NULL);
-
-        if (plan == NULL)
-        {
-            ereport(ERROR,
-                    (errcode(ERRCODE_SYNTAX_ERROR),
-                     errmsg("pg_tkach_scheduler error preparing query")));
-        }
-
-        // План успешно подготовлен - запрос валиден
         result = true;
+        elog(DEBUG1, "pg_tkach_scheduler isValidQuery 3");
+        SPI_freeplan(plan);
+        elog(DEBUG1, "pg_tkach_scheduler isValidQuery 4");
     }
-    PG_CATCH();
-    {
-        // Переключаемся в безопасный контекст
-        MemoryContextSwitchTo(oldcontext);
 
-        // Сохраняем информацию об ошибке
-        error = CopyErrorData();
-        FlushErrorState();
-
-        // Запрос невалиден, но это ожидаемо
-        result = false;
-
-        // для отладки
-        elog(DEBUG2, "Query validation failed: %s", error->message);
-    }
-    PG_END_TRY();
+    SPI_finish();
 
     elog(DEBUG1, "pg_tkach_scheduler isValidQuery 5");
-
-    // очистка ресурсов
-    if (spi_connected)
-    {
-        if (plan != NULL)
-        {
-            SPI_freeplan(plan);
-        }
-        SPI_finish();
-    }
-
-    elog(DEBUG1, "pg_tkach_scheduler isValidQuery 6");
-
-    // восстанавливаем контекст ошибок
-    error_context_stack = errcxt;
-
-    if (error)
-    {
-        FreeErrorData(error);
-    }
 
     return result;
 }
 
-// bool
-// isValidQuery(const char *query)
-// {
+int64
+schedule_task()
+{
+    StartTransactionCommand();
+    PushActiveSnapshot(GetTransactionSnapshot());
+    SPI_connect();
 
-//     int spi_connected = false;
-//     SPIPlanPtr plan = NULL;
+    Datum res = SPI_exec("SELECT t FROM test LIMIT 1;", 0);
+    char *str = DatumGetCString(
+        DirectFunctionCall1(timestamp_out, DatumGetTimestamp(res)));
+    elog(LOG, "test - test_main - %s", str);
 
-//     if (SPI_connect() != SPI_OK_CONNECT)
-//     {
-//         elog(ERROR, "failed to connect to SPI");
-//         return false;
-//     }
-//     spi_connected = true;
+    SPI_finish();
+    PopActiveSnapshot();
+    CommitTransactionCommand();
 
-//     PG_TRY();
-//     {
-//         // попытка подготовить план
-//         plan = SPI_prepare(query, 0, NULL);
-
-//         if (plan == NULL)
-//         {
-//             ereport(ERROR,
-//                     (errcode(ERRCODE_SYNTAX_ERROR),
-//                      errmsg("Error preparing request"),
-//                      errdetail("SPI_prepare return NULL")));
-//         }
-
-//         if (SPI_keepplan(plan) < 0)
-//         {
-//             ereport(ERROR,
-//                     (errcode(ERRCODE_INTERNAL_ERROR),
-//                      errmsg("Error saving query plan")));
-//         }
-//     }
-//     PG_CATCH();
-//     {
-//         ErrorData *error = CopyErrorData();
-//         FlushErrorState();
-
-//         if (spi_connected)
-//         {
-//             SPI_finish();
-//         }
-
-//         ereport(ERROR,
-//                 (errcode(error->sqlerrcode),
-//                  errmsg("Incorrect SQL query"),
-//                  errdetail("%s", error->message),
-//                  errhint("Query: %s", query)));
-
-//         FreeErrorData(error);
-//         return false; // только если ERROR обрабатывается выше
-//     }
-//     PG_END_TRY();
-
-//     SPI_freeplan(plan);
-//     SPI_finish();
-//     return true;
-// }
+    return 1;
+}

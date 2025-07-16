@@ -17,10 +17,10 @@ DECLARE
     ts TEXT := 'ts';
 BEGIN
     RAISE NOTICE 'Use name %, for example: ts.schedule_single()', quote_literal(ts);
-    IF NOT ts.check_shared_preload() THEN
-        RAISE EXCEPTION 
-            'Need to add pg_tkach_scheduler to shared_preload_libraries';
-    END IF;
+    -- IF NOT ts.check_shared_preload() THEN
+    --     RAISE EXCEPTION 
+    --         'Need to add pg_tkach_scheduler to shared_preload_libraries';
+    -- END IF;
 END;
 $$;
 
@@ -96,21 +96,16 @@ CREATE FUNCTION ts.schedule_single(
 RETURNS BIGINT
 LANGUAGE plpgsql
 AS $$
-DECLARE
-    task_id BIGINT;
 BEGIN
         -- RAISE NOTICE 'Calling schedule with time_exec: %', time_exec;
-    SELECT ts.schedule(
+    RETURN ts.schedule(
         'single'::ts.TASK_TYPE, 
         command, 
         time_exec, 
         NULL::INTERVAL, 
         NULL::BIGINT, 
         NULL::TIMESTAMPTZ, 
-        note) 
-    INTO task_id;
-
-    RETURN task_id;
+        note);
 END;
 $$;
 COMMENT ON FUNCTION ts.schedule_single(TEXT,TIMESTAMPTZ,TEXT)
