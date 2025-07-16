@@ -106,10 +106,28 @@ TSMain(Datum arg)
         CHECK_FOR_INTERRUPTS();
 
         StartTransactionCommand();
+
+        /* 1. Запоминаем контекст, в котором вызвали функцию */
+        MemoryContext caller_ctx = CurrentMemoryContext;
+        /* 2. Создаём собственный контекст, который переживёт коммит */
+        MemoryContext sched_ctx =
+            AllocSetContextCreate(TopMemoryContext,
+                                  "pg_tkach_scheduler context",
+                                  ALLOCSET_DEFAULT_SIZES);
+        MemoryContextSwitchTo(sched_ctx);
+
+        /* 3. Получаем список задач */
         List *taskList = GetCurrentTaskList(GetCurrentTimestamp());
+
+        /* 4. Коммитим транзакцию – память sched_ctx НЕ уничтожится */
         CommitTransactionCommand();
 
-        elog(DEBUG1, "List lenght3: %d", list_length(taskList));
+        /* 5. Возвращаемся в исходный контекст */
+        MemoryContextSwitchTo(caller_ctx);
+
+        elog(DEBUG1,
+             "List length3: %d",
+             list_length(taskList)); // теперь корректно
 
         if (taskList != NIL)
         {
@@ -117,6 +135,7 @@ TSMain(Datum arg)
             UpdateTaskStatus(taskList);
         }
         freeTaskList(taskList);
+        MemoryContextDelete(sched_ctx);
 
         pg_usleep(10 * 1000000L);
 
@@ -334,7 +353,7 @@ ExecuteTask(Task *task)
     int ret;
 
     // StartTransactionCommand();
-    // PushActiveSnapshot(GetTransactionSnapshot());
+    PushActiveSnapshot(GetTransactionSnapshot());
 
     if ((ret = SPI_connect() != SPI_OK_CONNECT))
         elog(ERROR, "failed to connect to SPI while getting current tasks");
@@ -349,7 +368,7 @@ ExecuteTask(Task *task)
                  errdetail("SPI status: %d", ret)));
     }
     SPI_finish();
-    // PopActiveSnapshot();
+    PopActiveSnapshot();
     // CommitTransactionCommand();
 
     // восстанавливаем контекст памяти и удаляем временный контекст
@@ -367,11 +386,11 @@ UpdateTaskStatus(List *taskList)
     elog(DEBUG1, "pg_tkach_scheduler start UpdateTaskStatus");
     ListCell *cell;
 
-    StartTransactionCommand();
     foreach (cell, taskList)
     {
         Task *task = (Task *)lfirst(cell);
 
+        //StartTransactionCommand();
         switch (task->type)
         {
         case (Single):
@@ -401,8 +420,8 @@ UpdateTaskStatus(List *taskList)
                 UpdateTaskTimeNextExec(task->task_id, timeNextExec);
             break;
         }
+        //CommitTransactionCommand();
     }
-    CommitTransactionCommand();
     elog(DEBUG1, "pg_tkach_scheduler end UpdateTaskStatus");
 }
 
@@ -417,7 +436,7 @@ UpdateTaskTimeNextExec(int64 taskId, TimestampTz newNextTime)
 
     // StartTransactionCommand();
 
-    // PushActiveSnapshot(GetTransactionSnapshot());
+    PushActiveSnapshot(GetTransactionSnapshot());
     if (SPI_connect() != SPI_OK_CONNECT)
         elog(ERROR, "failed to connect to SPI");
 
@@ -443,7 +462,7 @@ UpdateTaskTimeNextExec(int64 taskId, TimestampTz newNextTime)
         elog(ERROR, "SPI_exec failed witch update time_next_exec");
 
     SPI_finish();
-    // PopActiveSnapshot();
+    PopActiveSnapshot();
     // CommitTransactionCommand();
 
     elog(DEBUG1, "pg_tkach_scheduler end UpdateTaskTimeNextExec");
@@ -460,7 +479,7 @@ UpdateRepeatLimitTask(int64 taskId, int repeat_limit)
 
     // StartTransactionCommand();
 
-    // PushActiveSnapshot(GetTransactionSnapshot());
+    PushActiveSnapshot(GetTransactionSnapshot());
     if (SPI_connect() != SPI_OK_CONNECT)
         elog(ERROR, "failed to connect to SPI");
 
@@ -486,7 +505,7 @@ UpdateRepeatLimitTask(int64 taskId, int repeat_limit)
         elog(ERROR, "SPI_exec failed witch update repeat_limit");
 
     SPI_finish();
-    // PopActiveSnapshot();
+    PopActiveSnapshot();
     // CommitTransactionCommand();
 
     elog(DEBUG1, "pg_tkach_scheduler end UpdateRepeatLimitTask");
@@ -501,24 +520,27 @@ DeleteTask(int64 taskId)
 {
     elog(DEBUG1, "pg_tkach_scheduler start DeleteTask");
 
-    // StartTransactionCommand(); //
-
-    // PushActiveSnapshot(GetTransactionSnapshot());
+    StartTransactionCommand(); //
+    PushActiveSnapshot(GetTransactionSnapshot());
     if (SPI_connect() != SPI_OK_CONNECT)
         elog(ERROR, "failed to connect to SPI");
 
-    char *sql;
-    sprintf(sql, "DELETE FROM ts.task WHERE task_id = %ld", taskId);
+    char sql[256];
+    snprintf(
+        sql, sizeof(sql), "DELETE FROM ts.task WHERE task_id = %ld", taskId);
 
     if (SPI_execute(sql, false, 0) != SPI_OK_DELETE)
     {
-        ereport(ERROR, (errmsg("task delete error: %ld", taskId)));
+        SPI_finish();
+        PopActiveSnapshot();
+        AbortCurrentTransaction();
+        ereport(ERROR, (errmsg("task delete error: %lld", (long long)taskId)));
         return false;
     }
 
     SPI_finish();
-    // PopActiveSnapshot();
-    // CommitTransactionCommand();
+    PopActiveSnapshot();
+    CommitTransactionCommand();
 
     elog(DEBUG1, "pg_tkach_scheduler end DeleteTask");
     return true;
