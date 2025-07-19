@@ -10,6 +10,6 @@
 Datum ts_schedule(PG_FUNCTION_ARGS);
 Datum ts_unschedule(PG_FUNCTION_ARGS);
 
-bool isValidQuery(const char *);
+static bool isValidQuery(const char *);
 
 #endif

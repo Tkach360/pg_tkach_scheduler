@@ -8,15 +8,16 @@
 extern int task_check_interval;
 
 void TSMain(Datum);
-void ExecuteAllTask(List *);
-void ExecuteTask(Task *);
-void UpdateTaskStatus(List *);
-List *GetCurrentTaskList(TimestampTz);
-Task *GetTaskRecordFromTuple(SPITupleTable *, int);
-void UpdateTaskTimeNextExec(int64, TimestampTz);
-void UpdateRepeatLimitTask(int64, int);
-bool DeleteTask(int64);
-int64 ScheduleTask(Task*);
-void freeTaskList(List*);
+static void ExecuteAllTask(List *);
+static void ExecuteTask(Task *);
+static void UpdateTaskStatus(List *);
+static List *GetCurrentTaskList(TimestampTz);
+static Task *GetTaskRecordFromTuple(SPITupleTable *, int);
+static void UpdateTaskTimeNextExec(int64, TimestampTz);
+static void UpdateRepeatLimitTask(int64, int);
+static void freeTaskList(List*);
+
+extern int64 ScheduleTask(Task*);
+extern bool DeleteTask(int64);
 
 #endif // TS_BACKGROUND_WORKER

@@ -3,6 +3,7 @@
 #include "c.h"
 #include "postgres.h"
 #include "fmgr.h"
+#include "postmaster/bgworker.h"
 #include "utils/guc.h"
 #include "datatype/timestamp.h"
 #include "utils/builtins.h"
@@ -22,13 +23,56 @@ PG_MODULE_MAGIC;
 PG_FUNCTION_INFO_V1(ts_schedule);
 PG_FUNCTION_INFO_V1(ts_unschedule);
 
-int64 schedule_task(void);
+
+/*
+ * эта функция вызывается инфраструктурой Postgres при загрузке расширения
+ */
+void
+_PG_init()
+{
+    elog(DEBUG1, "start register background worker pg_tkach_scheduler");
+
+    DefineCustomIntVariable(
+        "pg_tkach_scheduler.task_check_interval",
+        "Interval for checking new tasks (in seconds)",
+        "Determines how often the background worker checks for new tasks to "
+        "execute.",
+        &task_check_interval,
+        10,
+        1,
+        3600,
+        PGC_SIGHUP,
+        GUC_UNIT_S,
+        NULL,
+        NULL,
+        NULL);
+
+    BackgroundWorker worker;
+    memset(&worker, 0, sizeof(BackgroundWorker));
+
+    worker.bgw_flags =
+        BGWORKER_SHMEM_ACCESS | BGWORKER_BACKEND_DATABASE_CONNECTION;
+    worker.bgw_start_time = BgWorkerStart_RecoveryFinished;
+    worker.bgw_restart_time = 5;
+
+    worker.bgw_main_arg = Int32GetDatum(0);
+
+    worker.bgw_notify_pid = 0;
+    sprintf(worker.bgw_library_name, "pg_tkach_scheduler");
+    snprintf(worker.bgw_name, BGW_MAXLEN, "pg_tkach_scheduler main");
+    snprintf(worker.bgw_type, BGW_MAXLEN, "pg_tkach_scheduler main");
+    sprintf(worker.bgw_function_name, "TSMain");
+
+    RegisterBackgroundWorker(&worker);
+
+    elog(DEBUG1, "end register background worker pg_tkach_scheduler");
+}
 
 
 /*
  * проверка наличия расширения в shared_preload_libraries
  */
-void
+static void
 check_shared_preload()
 {
     char *libs = GetConfigOption("shared_preload_libraries", true, false);
@@ -236,7 +280,7 @@ ts_unschedule(PG_FUNCTION_ARGS)
 /*
  * функция для проверки корректности SQL запроса 
  */
-bool
+static bool
 isValidQuery(const char *sql)
 {
     int ret;
@@ -266,23 +310,4 @@ isValidQuery(const char *sql)
     elog(DEBUG1, "pg_tkach_scheduler isValidQuery 5");
 
     return result;
-}
-
-int64
-schedule_task()
-{
-    StartTransactionCommand();
-    PushActiveSnapshot(GetTransactionSnapshot());
-    SPI_connect();
-
-    Datum res = SPI_exec("SELECT t FROM test LIMIT 1;", 0);
-    char *str = DatumGetCString(
-        DirectFunctionCall1(timestamp_out, DatumGetTimestamp(res)));
-    elog(LOG, "test - test_main - %s", str);
-
-    SPI_finish();
-    PopActiveSnapshot();
-    CommitTransactionCommand();
-
-    return 1;
 }
