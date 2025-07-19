@@ -5,22 +5,12 @@
 -- схема для расширения
 CREATE SCHEMA ts;
 
--- функция для проверки наличия расширения в shared_preload_libraries
-CREATE FUNCTION ts.check_shared_preload()
-RETURNS BOOL
-LANGUAGE C
-AS 'MODULE_PATHNAME', 'ts_check_shared_preload';
-
 -- как пользователю удобнее намекнуть, что нужно пользоваться
 DO $$
 DECLARE
     ts TEXT := 'ts';
 BEGIN
     RAISE NOTICE 'Use name %, for example: ts.schedule_single()', quote_literal(ts);
-    -- IF NOT ts.check_shared_preload() THEN
-    --     RAISE EXCEPTION 
-    --         'Need to add pg_tkach_scheduler to shared_preload_libraries';
-    -- END IF;
 END;
 $$;
 
@@ -110,22 +100,3 @@ END;
 $$;
 COMMENT ON FUNCTION ts.schedule_single(TEXT,TIMESTAMPTZ,TEXT)
     IS 'schedule a pg_tkach_sheduler single task, returns the task_id of the scheduled task';
-
-    -- RAISE NOTICE 'Calling schedule with time_exec: %', time_exec;
-    -- SELECT ts.schedule(
-    --     'single'::ts.TASK_TYPE, 
-    --     command, 
-    --     time_exec, 
-    --     NULL::INTERVAL, 
-    --     NULL::BIGINT, 
-    --     NULL::TIMESTAMPTZ, 
-    --     note) 
-    -- INTO task_id;
-
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'schedule' AND pronamespace = 'ts'::regnamespace) THEN
-        RAISE EXCEPTION 'Function ts.schedule not found!';
-    END IF;
-END;
-$$;

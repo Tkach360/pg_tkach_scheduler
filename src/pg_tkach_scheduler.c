@@ -21,7 +21,6 @@ PG_MODULE_MAGIC;
 
 PG_FUNCTION_INFO_V1(ts_schedule);
 PG_FUNCTION_INFO_V1(ts_unschedule);
-PG_FUNCTION_INFO_V1(ts_check_shared_preload);
 
 int64 schedule_task(void);
 
@@ -29,12 +28,12 @@ int64 schedule_task(void);
 /*
  * проверка наличия расширения в shared_preload_libraries
  */
-Datum
-ts_check_shared_preload(PG_FUNCTION_ARGS)
+void
+check_shared_preload()
 {
     char *libs = GetConfigOption("shared_preload_libraries", true, false);
-    bool found = (strstr(libs, "pg_tkach_scheduler") != NULL);
-    PG_RETURN_BOOL(found);
+    if (!(strstr(libs, "pg_tkach_scheduler") != NULL))
+        elog(ERROR, "pg_tkach_scheduler not found in shared_preload_libraries");
 }
 
 
@@ -44,6 +43,8 @@ ts_check_shared_preload(PG_FUNCTION_ARGS)
 Datum
 ts_schedule(PG_FUNCTION_ARGS)
 {
+    check_shared_preload();
+
     // индексы соответствующих параметров
     int indType = 0;
     int indCommand = 1;
@@ -219,6 +220,7 @@ ts_schedule(PG_FUNCTION_ARGS)
 Datum
 ts_unschedule(PG_FUNCTION_ARGS)
 {
+    check_shared_preload();
     elog(DEBUG1, "pg_tkach_scheduler ts_unschedule");
 
     int64 taskId;

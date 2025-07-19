@@ -107,27 +107,20 @@ TSMain(Datum arg)
 
         StartTransactionCommand();
 
-        /* 1. Запоминаем контекст, в котором вызвали функцию */
         MemoryContext caller_ctx = CurrentMemoryContext;
-        /* 2. Создаём собственный контекст, который переживёт коммит */
         MemoryContext sched_ctx =
             AllocSetContextCreate(TopMemoryContext,
                                   "pg_tkach_scheduler context",
                                   ALLOCSET_DEFAULT_SIZES);
         MemoryContextSwitchTo(sched_ctx);
 
-        /* 3. Получаем список задач */
         List *taskList = GetCurrentTaskList(GetCurrentTimestamp());
 
-        /* 4. Коммитим транзакцию – память sched_ctx НЕ уничтожится */
         CommitTransactionCommand();
 
-        /* 5. Возвращаемся в исходный контекст */
         MemoryContextSwitchTo(caller_ctx);
 
-        elog(DEBUG1,
-             "List length3: %d",
-             list_length(taskList)); // теперь корректно
+        elog(DEBUG1, "List length3: %d", list_length(taskList));
 
         if (taskList != NIL)
         {
@@ -647,7 +640,7 @@ ScheduleTask(Task *task)
 
     SPI_finish();
     PopActiveSnapshot();
-    //CommitTransactionCommand();
+
     transaction_ok = true;
 
     elog(DEBUG1,
