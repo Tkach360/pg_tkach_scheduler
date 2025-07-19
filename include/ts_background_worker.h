@@ -3,6 +3,10 @@
 #ifndef TS_BACKGROUND_WORKER
 #define TS_BACKGROUND_WORKER
 
+#include "utils/guc.h"
+
+extern int task_check_interval;
+
 void TSMain(Datum);
 void ExecuteAllTask(List *);
 void ExecuteTask(Task *);

@@ -20,7 +20,7 @@
 #include "task.h"
 #include "ts_background_worker.h"
 
-#define MAX_WAIT 10000 // время между проверками задач
+int task_check_interval = 10;
 
 /* TODO: сделать изменение базы данных */
 char *TSTableName = "postgres"; // база данных с которой работаем по-умолчанию
@@ -54,6 +54,21 @@ void
 _PG_init()
 {
     elog(DEBUG1, "start register background worker pg_tkach_scheduler");
+
+    DefineCustomIntVariable(
+        "pg_tkach_scheduler.task_check_interval",
+        "Interval for checking new tasks (in seconds)",
+        "Determines how often the background worker checks for new tasks to "
+        "execute.",
+        &task_check_interval,
+        10,
+        1,
+        3600,
+        PGC_SIGHUP,
+        GUC_UNIT_S,
+        NULL,
+        NULL,
+        NULL);
 
     BackgroundWorker worker;
     memset(&worker, 0, sizeof(BackgroundWorker));
@@ -130,7 +145,7 @@ TSMain(Datum arg)
         freeTaskList(taskList);
         MemoryContextDelete(sched_ctx);
 
-        pg_usleep(10 * 1000000L);
+        pg_usleep(task_check_interval * 1000000L);
 
         elog(DEBUG1, "pg_tkach_scheduler out TSMain loop");
     }
