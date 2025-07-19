@@ -639,7 +639,7 @@ ScheduleTask(Task *task)
 
         if (!isnull)
         {
-            int64 task_id = DatumGetInt64(id_datum);
+            task_id = DatumGetInt64(id_datum);
         }
     }
     else
