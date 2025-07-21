@@ -14,7 +14,7 @@ static void UpdateTaskStatus(List *);
 static List *GetCurrentTaskList(TimestampTz);
 static Task *GetTaskRecordFromTuple(SPITupleTable *, int);
 static void UpdateTaskTimeNextExec(int64, TimestampTz);
-static void UpdateRepeatLimitTask(int64, int);
+static void UpdateRepeatLimitTask(Task*);
 static void freeTaskList(List*);
 
 extern int64 ScheduleTask(Task*);

@@ -360,7 +360,7 @@ UpdateTaskStatus(List *taskList)
             if (repeat_limit == 0)
                 DeleteTask(task->task_id);
             else
-                UpdateRepeatLimitTask(task->task_id, repeat_limit);
+                UpdateRepeatLimitTask(task);
             break;
 
         case (RepeatUntil):
@@ -424,30 +424,32 @@ UpdateTaskTimeNextExec(int64 taskId, TimestampTz newNextTime)
  * обновить лимит выполнения задачи
  */
 static void
-UpdateRepeatLimitTask(int64 taskId, int repeat_limit)
+UpdateRepeatLimitTask(Task *task)
 {
     elog(DEBUG1, "pg_tkach_scheduler start UpdateRepeatLimitTask");
 
-    // StartTransactionCommand();
-
+    StartTransactionCommand();
     PushActiveSnapshot(GetTransactionSnapshot());
     if (SPI_connect() != SPI_OK_CONNECT)
         elog(ERROR, "failed to connect to SPI");
 
     const char *sql;
-    sql = "UPDATE ts.task SET repeat_limit = $1 WHERE task_id = $2;";
+    sql = "UPDATE ts.task SET repeat_limit = $1, time_next_exec = $2 WHERE "
+          "task_id = $3;";
 
-    Datum argValues[2];
-    Oid argTypes[2] = {
+    Datum argValues[3];
+    Oid argTypes[3] = {
+        INT8OID,
         TIMESTAMPTZOID,
         INT8OID,
     };
-    char argNulls[2] = { '\0', '\0' };
+    char argNulls[3] = { '\0', '\0', '\0' };
 
-    argValues[0] = Int64GetDatum(repeat_limit);
-    argValues[1] = Int64GetDatum(taskId);
+    argValues[0] = Int64GetDatum(task->repeat_limit - 1);
+    argValues[1] = TimestampTzGetDatum(GetNewTimeNextExec(task));
+    argValues[2] = Int64GetDatum(task->task_id);
 
-    int countArgs = 2; // количество аргументов для SPI_execute_with_args
+    int countArgs = 3; // количество аргументов для SPI_execute_with_args
     bool res = (SPI_OK_UPDATE ==
                 SPI_execute_with_args(
                     sql, countArgs, argTypes, argValues, argNulls, false, 1));
@@ -457,7 +459,7 @@ UpdateRepeatLimitTask(int64 taskId, int repeat_limit)
 
     SPI_finish();
     PopActiveSnapshot();
-    // CommitTransactionCommand();
+    CommitTransactionCommand();
 
     elog(DEBUG1, "pg_tkach_scheduler end UpdateRepeatLimitTask");
 }

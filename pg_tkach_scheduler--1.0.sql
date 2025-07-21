@@ -60,6 +60,7 @@ CREATE TABLE ts.task (
 
 -- TODO: должен ли пользователь иметь полный доступ к этой таблице или нет?
 
+
 -- запланировать задачу
 CREATE FUNCTION ts.schedule(
     type ts.TASK_TYPE,
@@ -76,6 +77,7 @@ LANGUAGE C
 AS 'MODULE_PATHNAME', 'ts_schedule';
 COMMENT ON FUNCTION ts.schedule(ts.TASK_TYPE,TEXT,TIMESTAMPTZ,INTERVAL,BIGINT,TIMESTAMPTZ,TEXT)
     IS 'schedule a pg_tkach_sheduler task, returns the task_id of the scheduled task';
+
 
 -- запланировать одноразовую задачу
 CREATE FUNCTION ts.schedule_single(
@@ -100,6 +102,7 @@ $$;
 COMMENT ON FUNCTION ts.schedule_single(TEXT,TIMESTAMPTZ,TEXT)
     IS 'schedule a pg_tkach_sheduler single task, returns the task_id of the scheduled task';
 
+
 -- запланировать бесконечно повторяющуюся задачу
 CREATE FUNCTION ts.schedule_repeat(
     command TEXT, 
@@ -123,3 +126,29 @@ END;
 $$;
 COMMENT ON FUNCTION ts.schedule_single(TEXT,TIMESTAMPTZ,TEXT)
     IS 'schedule a pg_tkach_sheduler repeatable task, returns the task_id of the scheduled task';
+
+
+-- запланировать бесконечно повторяющуюся задачу
+CREATE FUNCTION ts.schedule_repeat_limit(
+    command TEXT, 
+    time_next_exec TIMESTAMPTZ,
+    exec_interval INTERVAL,
+    repeat_limit BIGINT,
+    note TEXT DEFAULT NULL
+)
+RETURNS BIGINT
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN ts.schedule(
+        'repeat_limit'::ts.TASK_TYPE, 
+        command, 
+        time_next_exec, 
+        exec_interval, 
+        repeat_limit, 
+        NULL::TIMESTAMPTZ, 
+        note);
+END;
+$$;
+COMMENT ON FUNCTION ts.schedule_single(TEXT,TIMESTAMPTZ,TEXT)
+    IS 'schedule a pg_tkach_sheduler limited repeatable task, returns the task_id of the scheduled task';
