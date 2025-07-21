@@ -128,7 +128,7 @@ COMMENT ON FUNCTION ts.schedule_single(TEXT,TIMESTAMPTZ,TEXT)
     IS 'schedule a pg_tkach_sheduler repeatable task, returns the task_id of the scheduled task';
 
 
--- запланировать бесконечно повторяющуюся задачу
+-- запланировать повторяющуюся ограниченное количество раз задачу
 CREATE FUNCTION ts.schedule_repeat_limit(
     command TEXT, 
     time_next_exec TIMESTAMPTZ,
@@ -152,3 +152,29 @@ END;
 $$;
 COMMENT ON FUNCTION ts.schedule_single(TEXT,TIMESTAMPTZ,TEXT)
     IS 'schedule a pg_tkach_sheduler limited repeatable task, returns the task_id of the scheduled task';
+
+
+-- запланировать повторяющуюся до определенного времени задачу
+CREATE FUNCTION ts.schedule_repeat_until(
+    command TEXT, 
+    time_next_exec TIMESTAMPTZ,
+    exec_interval INTERVAL,
+    until TIMESTAMPTZ,
+    note TEXT DEFAULT NULL
+)
+RETURNS BIGINT
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN ts.schedule(
+        'repeat_until'::ts.TASK_TYPE, 
+        command, 
+        time_next_exec, 
+        exec_interval, 
+        NULL::BIGINT, 
+        until, 
+        note);
+END;
+$$;
+COMMENT ON FUNCTION ts.schedule_single(TEXT,TIMESTAMPTZ,TEXT)
+    IS 'schedule a pg_tkach_sheduler until repeatable task, returns the task_id of the scheduled task';
