@@ -11,6 +11,7 @@
 #include "pgstat.h"
 #include "storage/proc.h"
 #include "utils/elog.h"
+#include "utils/fmgrprotos.h"
 #include "utils/memutils.h"
 #include "utils/palloc.h"
 #include "utils/timestamp.h"
@@ -166,24 +167,14 @@ GetCurrentTaskList(TimestampTz time)
         {
             MemoryContextSwitchTo(oldcontext);
             Task *task = GetTaskRecordFromTuple(tuptable, i);
-
-            elog(DEBUG1, "GetCurrentTaskList task - %s", task->command);
-
-            //taskList = lappend(taskList, GetTaskRecordFromTuple(tuptable, i));
             taskList = lappend(taskList, task);
         }
     }
 
-    elog(DEBUG1, "List lenght1: %d", list_length(taskList)); // одно значение
-
     SPI_finish();
     PopActiveSnapshot();
-    //CommitTransactionCommand();
 
     MemoryContextSwitchTo(oldcontext);
-    elog(DEBUG1,
-         "List lenght2: %d",
-         list_length(taskList)); // совсем другое значение
 
     elog(DEBUG1, "pg_tkach_scheduler end GetCurrentTaskList");
     return taskList;
@@ -220,8 +211,6 @@ GetTaskRecordFromTuple(SPITupleTable *tuptable, int index)
     task->type = CStringToTaskType(DatumGetCString(DirectFunctionCall1(
         enum_out, SPI_getbinval(tuple, tupdesc, 3, &isnull))));
 
-    // task->type = CStringToTaskType(
-    //     TextDatumGetCString(SPI_getbinval(tuple, tupdesc, 3, &isnull)));
     elog(DEBUG1, "pg_tkach_scheduler start GetTaskRecordFromTuple 4");
 
     task->time_next_exec =
@@ -240,20 +229,23 @@ GetTaskRecordFromTuple(SPITupleTable *tuptable, int index)
         break;
 
     case Repeat:
-        task->exec_interval =
-            DatumGetIntervalP(SPI_getbinval(tuple, tupdesc, 4, &isnull));
+        task->exec_interval = palloc(sizeof(Interval));
+        *task->exec_interval =
+            *DatumGetIntervalP(SPI_getbinval(tuple, tupdesc, 4, &isnull));
         break;
 
     case RepeatLimit:
-        task->exec_interval =
-            DatumGetIntervalP(SPI_getbinval(tuple, tupdesc, 4, &isnull));
+        task->exec_interval = palloc(sizeof(Interval));
+        *task->exec_interval =
+            *DatumGetIntervalP(SPI_getbinval(tuple, tupdesc, 4, &isnull));
         task->repeat_limit =
             DatumGetInt64(SPI_getbinval(tuple, tupdesc, 6, &isnull));
         break;
 
     case RepeatUntil:
-        task->exec_interval =
-            DatumGetIntervalP(SPI_getbinval(tuple, tupdesc, 4, &isnull));
+        task->exec_interval = palloc(sizeof(Interval));
+        *task->exec_interval =
+            *DatumGetIntervalP(SPI_getbinval(tuple, tupdesc, 4, &isnull));
         task->until =
             DatumGetTimestampTz(SPI_getbinval(tuple, tupdesc, 7, &isnull));
         break;
@@ -298,7 +290,6 @@ ExecuteAllTask(List *taskList)
         ExecuteTask(task);
         CommitTransactionCommand();
     }
-    //pfree(cell);
     elog(DEBUG1, "pg_tkach_scheduler end ExecuteAllTask");
 }
 
@@ -316,7 +307,6 @@ ExecuteTask(Task *task)
     // TODO: тут наверняка должна быть логика подстановки database и username
     int ret;
 
-    // StartTransactionCommand();
     PushActiveSnapshot(GetTransactionSnapshot());
 
     if ((ret = SPI_connect() != SPI_OK_CONNECT))
@@ -333,7 +323,6 @@ ExecuteTask(Task *task)
     }
     SPI_finish();
     PopActiveSnapshot();
-    // CommitTransactionCommand();
 
     // восстанавливаем контекст памяти и удаляем временный контекст
     elog(DEBUG1, "pg_tkach_scheduler end ExecuteTask");
@@ -354,7 +343,6 @@ UpdateTaskStatus(List *taskList)
     {
         Task *task = (Task *)lfirst(cell);
 
-        //StartTransactionCommand();
         switch (task->type)
         {
         case (Single):
@@ -362,7 +350,8 @@ UpdateTaskStatus(List *taskList)
             break;
 
         case (Repeat):
-            UpdateTaskTimeNextExec(task->task_id, GetNewTimeNextExec(task));
+            TimestampTz newTimeNextExec = GetNewTimeNextExec(task);
+            UpdateTaskTimeNextExec(task->task_id, newTimeNextExec);
             break;
 
         case (RepeatLimit):
@@ -384,7 +373,6 @@ UpdateTaskStatus(List *taskList)
                 UpdateTaskTimeNextExec(task->task_id, timeNextExec);
             break;
         }
-        //CommitTransactionCommand();
     }
     elog(DEBUG1, "pg_tkach_scheduler end UpdateTaskStatus");
 }
@@ -398,8 +386,7 @@ UpdateTaskTimeNextExec(int64 taskId, TimestampTz newNextTime)
 {
     elog(DEBUG1, "pg_tkach_scheduler start UpdateTaskTimeNextExec");
 
-    // StartTransactionCommand();
-
+    StartTransactionCommand();
     PushActiveSnapshot(GetTransactionSnapshot());
     if (SPI_connect() != SPI_OK_CONNECT)
         elog(ERROR, "failed to connect to SPI");
@@ -427,7 +414,7 @@ UpdateTaskTimeNextExec(int64 taskId, TimestampTz newNextTime)
 
     SPI_finish();
     PopActiveSnapshot();
-    // CommitTransactionCommand();
+    CommitTransactionCommand();
 
     elog(DEBUG1, "pg_tkach_scheduler end UpdateTaskTimeNextExec");
 }

@@ -1,5 +1,8 @@
 
 #include "task.h"
+#include "postgres.h"
+#include "utils/elog.h"
+#include "utils/timestamp.h"
 #include <string.h>
 
 
@@ -74,6 +77,6 @@ GetNewTimeNextExec(Task *task)
 {
     return DatumGetTimestampTz(
         DirectFunctionCall2(timestamptz_pl_interval,
-                            TimestampTzGetDatum(task->until),
+                            TimestampTzGetDatum(task->time_next_exec),
                             PointerGetDatum(task->exec_interval)));
 }

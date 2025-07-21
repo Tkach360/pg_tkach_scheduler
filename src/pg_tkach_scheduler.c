@@ -59,8 +59,8 @@ _PG_init()
 
     worker.bgw_notify_pid = 0;
     sprintf(worker.bgw_library_name, "pg_tkach_scheduler");
-    snprintf(worker.bgw_name, BGW_MAXLEN, "pg_tkach_scheduler main");
-    snprintf(worker.bgw_type, BGW_MAXLEN, "pg_tkach_scheduler main");
+    snprintf(worker.bgw_name, BGW_MAXLEN, "pg_tkach_scheduler worker");
+    snprintf(worker.bgw_type, BGW_MAXLEN, "pg_tkach_scheduler worker");
     sprintf(worker.bgw_function_name, "TSMain");
 
     RegisterBackgroundWorker(&worker);

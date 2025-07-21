@@ -87,7 +87,6 @@ RETURNS BIGINT
 LANGUAGE plpgsql
 AS $$
 BEGIN
-        -- RAISE NOTICE 'Calling schedule with time_exec: %', time_exec;
     RETURN ts.schedule(
         'single'::ts.TASK_TYPE, 
         command, 
@@ -100,3 +99,27 @@ END;
 $$;
 COMMENT ON FUNCTION ts.schedule_single(TEXT,TIMESTAMPTZ,TEXT)
     IS 'schedule a pg_tkach_sheduler single task, returns the task_id of the scheduled task';
+
+-- запланировать бесконечно повторяющуюся задачу
+CREATE FUNCTION ts.schedule_repeat(
+    command TEXT, 
+    time_next_exec TIMESTAMPTZ,
+    exec_interval INTERVAL,
+    note TEXT DEFAULT NULL
+)
+RETURNS BIGINT
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN ts.schedule(
+        'repeat'::ts.TASK_TYPE, 
+        command, 
+        time_next_exec, 
+        exec_interval, 
+        NULL::BIGINT, 
+        NULL::TIMESTAMPTZ, 
+        note);
+END;
+$$;
+COMMENT ON FUNCTION ts.schedule_single(TEXT,TIMESTAMPTZ,TEXT)
+    IS 'schedule a pg_tkach_sheduler repeatable task, returns the task_id of the scheduled task';
