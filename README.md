@@ -21,41 +21,41 @@ ts.schedule_single(
 
 
 ts.schedule_repeat(
-    command TEXT, 				-- SQL запрос
+    command TEXT,               -- SQL запрос
     time_next_exec TIMESTAMPTZ, -- время следующего выполнения
-    exec_interval INTERVAL,		-- интервал выполнения
-    note TEXT DEFAULT NULL		-- комментарий (опционально)
+    exec_interval INTERVAL,     -- интервал выполнения
+    note TEXT DEFAULT NULL      -- комментарий (опционально)
 )
 
 
 ts.schedule_repeat_limit(
-    command TEXT, 				-- SQL запрос
+    command TEXT,               -- SQL запрос
     time_next_exec TIMESTAMPTZ, -- время следующего выполнения
-    exec_interval INTERVAL,		-- интервал выполнения
-    repeat_limit BIGINT,		-- количество выполнений
-    note TEXT DEFAULT NULL		-- комментарий (опционально)
+    exec_interval INTERVAL,     -- интервал выполнения
+    repeat_limit BIGINT,        -- количество выполнений
+    note TEXT DEFAULT NULL      -- комментарий (опционально)
 )
 
 
 ts.schedule_repeat_until(
-    command TEXT, 				-- SQL запрос
+    command TEXT,               -- SQL запрос
     time_next_exec TIMESTAMPTZ, -- время следующего выполнения
-    exec_interval INTERVAL,		-- интервал выполнения
-    until TIMESTAMPTZ,			-- до какого момента выполнять задачу
-    note TEXT DEFAULT NULL		-- комментарий (опционально)
+    exec_interval INTERVAL,     -- интервал выполнения
+    until TIMESTAMPTZ,          -- до какого момента выполнять задачу
+    note TEXT DEFAULT NULL      -- комментарий (опционально)
 )
 ```
 
 Вообще, описанные выше функции - это просто более удобные обертки, над функцией `ts.schedule`, описанной ниже
 ```SQL
 ts.schedule(
-    type ts.TASK_TYPE,					 -- тип задачи
-    command TEXT, 						 -- SQL запрос
-    time_next_exec TIMESTAMPTZ,			 -- время следующего выполнения
+    type ts.TASK_TYPE,                   -- тип задачи
+    command TEXT,                        -- SQL запрос
+    time_next_exec TIMESTAMPTZ,          -- время следующего выполнения
     exec_interval INTERVAL DEFAULT NULL, -- интервал выполнения
-    repeat_limit BIGINT DEFAULT NULL,	 -- количество выполнений
-    until TIMESTAMPTZ DEFAULT NULL,		 -- до какого момента выполнять задачу
-    note TEXT DEFAULT NULL				 -- комментарий (опционально)
+    repeat_limit BIGINT DEFAULT NULL,    -- количество выполнений
+    until TIMESTAMPTZ DEFAULT NULL,      -- до какого момента выполнять задачу
+    note TEXT DEFAULT NULL               -- комментарий (опционально)
 )
 ```
 
